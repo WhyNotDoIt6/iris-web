@@ -39,119 +39,110 @@ from app.iris_engine.access_control.utils import ac_fast_check_current_user_has_
 from app.models.authorization import CaseAccessLevel
 
 
-class NotesDirectories:
-
-    def __init__(self):
-        self._schema = CaseNoteDirectorySchema()
-
-    @staticmethod
-    def _get_note_directory_in_case(identifier, case_identifier):
-        directory = notes_directories_get(identifier)
-        if directory.case_id != case_identifier:
-            raise ObjectNotFoundError()
-        return directory
-
-    def _load(self, request_data, **kwargs):
-        return self._schema.load(request_data, **kwargs)
-
-    def create(self, case_identifier):
-        if not cases_exists(case_identifier):
-            return response_api_not_found()
-        if not ac_fast_check_current_user_has_case_access(case_identifier, [CaseAccessLevel.full_access]):
-            return ac_api_return_access_denied(caseid=case_identifier)
-
-        request_data = request.get_json()
-        request_data.pop('id', None)
-        request_data['case_id'] = case_identifier
-
-        try:
-            if request_data.get('parent_id') is not None:
-                self._schema.verify_parent_id(request_data['parent_id'], case_id=case_identifier)
-            directory = self._load(request_data)
-
-            notes_directories_create(directory)
-            result = self._schema.dump(directory)
-
-            return response_api_created(result)
-        except ValidationError as e:
-            return response_api_error('Data error', data=e.normalized_messages())
-
-    def get(self, case_identifier, identifier):
-        if not cases_exists(case_identifier):
-            return response_api_not_found()
-        if not ac_fast_check_current_user_has_case_access(case_identifier,
-                                                          [CaseAccessLevel.read_only, CaseAccessLevel.full_access]):
-            return ac_api_return_access_denied(caseid=case_identifier)
-
-        try:
-            note_directory = self._get_note_directory_in_case(identifier, case_identifier)
-
-            result = self._schema.dump(note_directory)
-            return response_api_success(result)
-        except ObjectNotFoundError:
-            return response_api_not_found()
-        except BusinessProcessingError as e:
-            return response_api_error(e.get_message())
-
-    def update(self, case_identifier, identifier):
-        if not cases_exists(case_identifier):
-            return response_api_not_found()
-        if not ac_fast_check_current_user_has_case_access(case_identifier, [CaseAccessLevel.full_access]):
-            return ac_api_return_access_denied(caseid=case_identifier)
-
-        try:
-            directory = self._get_note_directory_in_case(identifier, case_identifier)
-
-            request_data = request.get_json()
-
-            if request_data.get('parent_id') is not None:
-                self._schema.verify_parent_id(request_data['parent_id'], case_id=case_identifier, current_id=identifier)
-            new_directory = self._load(request_data, instance=directory, partial=True)
-            notes_directories_update(new_directory)
-            result = self._schema.dump(new_directory)
-            return response_api_success(result)
-        except ValidationError as e:
-            return response_api_error('Data error', data=e.normalized_messages())
-        except ObjectNotFoundError:
-            return response_api_not_found()
-        except BusinessProcessingError as e:
-            return response_api_error('Data error', data=e.get_data())
-
-    def delete(self, case_identifier, identifier):
-        if not ac_fast_check_current_user_has_case_access(case_identifier, [CaseAccessLevel.full_access]):
-            return ac_api_return_access_denied(caseid=case_identifier)
-
-        try:
-            directory = self._get_note_directory_in_case(identifier, case_identifier)
-            notes_directories_delete(directory)
-            return response_api_deleted()
-        except ObjectNotFoundError:
-            return response_api_not_found()
+case_notes_directories_blueprint = Blueprint('case_notes_directories_rest_v2',
+                                        __name__,
+                                        url_prefix='/<int:case_identifier>/notes-directories')
 
 
-notes_directories = NotesDirectories()
-case_notes_directories_blueprint = Blueprint('case_notes_directories_rest_v2', __name__, url_prefix='/<int:case_identifier>/notes-directories')
+def _load(request_data, **kwargs):
+    notes_directories_schema = CaseNoteDirectorySchema()
+    return notes_directories_schema.load(request_data, **kwargs)
 
 
 @case_notes_directories_blueprint.post('')
 @ac_api_requires()
-def create_note_directory(case_identifier):
-    return notes_directories.create(case_identifier)
+def create(case_identifier):
+    if not cases_exists(case_identifier):
+        return response_api_not_found()
+    if not ac_fast_check_current_user_has_case_access(case_identifier, [CaseAccessLevel.full_access]):
+        return ac_api_return_access_denied(caseid=case_identifier)
+
+    request_data = request.get_json()
+    request_data.pop('id', None)
+    request_data['case_id'] = case_identifier
+
+    notes_directories_schema = CaseNoteDirectorySchema()
+
+    try:
+        if request_data.get('parent_id') is not None:
+            notes_directories_schema.verify_parent_id(request_data['parent_id'], case_id=case_identifier)
+        directory = _load(request_data)
+
+        notes_directories_create(directory)
+        return response_api_created(notes_directories_schema.dump(directory))
+
+    except ValidationError as e:
+        return response_api_error('Data error', data=e.normalized_messages())
 
 
 @case_notes_directories_blueprint.get('/<int:identifier>')
 @ac_api_requires()
-def get_note_directory(case_identifier, identifier):
-    return notes_directories.get(case_identifier, identifier)
+def get(case_identifier, identifier):
+    if not cases_exists(case_identifier):
+        return response_api_not_found()
+    if not ac_fast_check_current_user_has_case_access(case_identifier,
+                                                          [CaseAccessLevel.read_only, CaseAccessLevel.full_access]):
+        return ac_api_return_access_denied(caseid=case_identifier)
+
+    notes_directories_schema = CaseNoteDirectorySchema()
+    try:
+        note_directory = get_note_directory_in_case(identifier, case_identifier)
+        return response_api_success(notes_directories_schema.dump(note_directory))
+
+    except ObjectNotFoundError:
+        return response_api_not_found()
+
+    except BusinessProcessingError as e:
+        return response_api_error(e.get_message())
 
 
 @case_notes_directories_blueprint.put('/<int:identifier>')
 @ac_api_requires()
-def update_note_directory(case_identifier, identifier):
-    return notes_directories.update(case_identifier, identifier)
+def update(case_identifier, identifier):
+    if not cases_exists(case_identifier):
+        return response_api_not_found()
+    if not ac_fast_check_current_user_has_case_access(case_identifier, [CaseAccessLevel.full_access]):
+        return ac_api_return_access_denied(caseid=case_identifier)
+
+    notes_directories_schema = CaseNoteDirectorySchema()
+    try:
+        directory = get_note_directory_in_case(identifier, case_identifier)
+
+        request_data = request.get_json()
+
+        if request_data.get('parent_id') is not None:
+            notes_directories_schema.verify_parent_id(request_data['parent_id'], case_id=case_identifier, current_id=identifier)
+
+        new_directory = _load(request_data, instance=directory, partial=True)
+        notes_directories_update(new_directory)
+        return response_api_success(notes_directories_schema.dump(directory))
+
+    except ValidationError as e:
+        return response_api_error('Data error', data=e.normalized_messages())
+
+    except ObjectNotFoundError:
+        return response_api_not_found()
+
+    except BusinessProcessingError as e:
+        return response_api_error('Data error', data=e.get_data())
 
 
-@case_notes_directories_blueprint.delete('<int:identifier>')
+@case_notes_directories_blueprint.delete('/<int:identifier>')
 @ac_api_requires()
-def delete_note_directory(case_identifier, identifier):
-    return notes_directories.delete(case_identifier, identifier)
+def delete(case_identifier, identifier):
+    if not ac_fast_check_current_user_has_case_access(case_identifier, [CaseAccessLevel.full_access]):
+        return ac_api_return_access_denied(caseid=case_identifier)
+
+    try:
+        directory = get_note_directory_in_case(identifier, case_identifier)
+        notes_directories_delete(directory)
+        return response_api_deleted()
+
+    except ObjectNotFoundError:
+        return response_api_not_found()
+
+def get_note_directory_in_case(identifier, case_identifier):
+    directory = notes_directories_get(identifier)
+    if directory.case_id != case_identifier:
+        raise ObjectNotFoundError()
+    return directory
