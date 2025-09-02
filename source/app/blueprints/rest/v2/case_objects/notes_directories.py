@@ -140,7 +140,7 @@ def delete(case_identifier, identifier):
 
     except ObjectNotFoundError:
         return response_api_not_found()
-    
+
 
 @case_notes_directories_blueprint.get('')
 @ac_api_requires()
