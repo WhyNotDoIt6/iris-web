@@ -147,6 +147,9 @@ def delete(case_identifier, identifier):
 @case_notes_directories_blueprint.get('')
 @ac_api_requires()
 def get_filter(case_identifier):
+    if not ac_fast_check_current_user_has_case_access(case_identifier, [CaseAccessLevel.full_access]):
+        return ac_api_return_access_denied(case_identifier)
+
     if not get_case(case_identifier):
         return response_api_error("Invalid case ID")
 
@@ -156,6 +159,7 @@ def get_filter(case_identifier):
 
 def get_note_directory_in_case(identifier, case_identifier):
     directory = notes_directories_get(identifier)
+
     if directory.case_id != case_identifier:
         raise ObjectNotFoundError()
     return directory
