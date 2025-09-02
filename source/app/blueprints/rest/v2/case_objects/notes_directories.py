@@ -141,6 +141,7 @@ def delete(case_identifier, identifier):
     except ObjectNotFoundError:
         return response_api_not_found()
 
+
 def get_note_directory_in_case(identifier, case_identifier):
     directory = notes_directories_get(identifier)
     if directory.case_id != case_identifier:
