@@ -39,6 +39,7 @@ from app.business.cases import cases_exists
 from app.datamgmt.case.case_db import get_case
 from app.iris_engine.access_control.utils import ac_fast_check_current_user_has_case_access
 from app.models.authorization import CaseAccessLevel
+from app.models.models import NoteDirectory
 
 
 case_notes_directories_blueprint = Blueprint('case_notes_directories_rest_v2',
@@ -151,13 +152,13 @@ def get_filter(case_identifier):
         return ac_api_return_access_denied(case_identifier)
 
     if not get_case(case_identifier):
-        return response_api_error("Invalid case ID")
+        return response_api_error('Invalid case ID')
 
     directories = get_directories_with_note_count(case_identifier)
     return response_api_success(directories)
 
 
-def get_note_directory_in_case(identifier, case_identifier):
+def get_note_directory_in_case(identifier, case_identifier) -> NoteDirectory:
     directory = notes_directories_get(identifier)
 
     if directory.case_id != case_identifier:
