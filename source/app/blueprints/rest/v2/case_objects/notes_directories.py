@@ -21,6 +21,7 @@ from flask import request
 from marshmallow import ValidationError
 
 from app.blueprints.access_controls import ac_api_requires
+from app.blueprints.access_controls import ac_requires_case_identifier
 from app.blueprints.rest.endpoints import response_api_created
 from app.blueprints.rest.endpoints import response_api_success
 from app.blueprints.rest.endpoints import response_api_deleted
@@ -34,7 +35,9 @@ from app.business.notes_directories import notes_directories_create
 from app.business.notes_directories import notes_directories_get
 from app.business.notes_directories import notes_directories_update
 from app.business.notes_directories import notes_directories_delete
+from app.datamgmt.case.case_notes_db import get_directories_with_note_count
 from app.business.cases import cases_exists
+from app.datamgmt.case.case_db import get_case
 from app.iris_engine.access_control.utils import ac_fast_check_current_user_has_case_access
 from app.models.authorization import CaseAccessLevel
 
@@ -55,7 +58,7 @@ def create(case_identifier):
     if not cases_exists(case_identifier):
         return response_api_not_found()
     if not ac_fast_check_current_user_has_case_access(case_identifier, [CaseAccessLevel.full_access]):
-        return ac_api_return_access_denied(caseid=case_identifier)
+        return ac_api_return_access_denied(case_identifier)
 
     request_data = request.get_json()
     request_data.pop('id', None)
@@ -82,7 +85,7 @@ def get(case_identifier, identifier):
         return response_api_not_found()
     if not ac_fast_check_current_user_has_case_access(case_identifier,
                                                           [CaseAccessLevel.read_only, CaseAccessLevel.full_access]):
-        return ac_api_return_access_denied(caseid=case_identifier)
+        return ac_api_return_access_denied(case_identifier)
 
     notes_directories_schema = CaseNoteDirectorySchema()
     try:
@@ -102,7 +105,7 @@ def update(case_identifier, identifier):
     if not cases_exists(case_identifier):
         return response_api_not_found()
     if not ac_fast_check_current_user_has_case_access(case_identifier, [CaseAccessLevel.full_access]):
-        return ac_api_return_access_denied(caseid=case_identifier)
+        return ac_api_return_access_denied(case_identifier)
 
     notes_directories_schema = CaseNoteDirectorySchema()
     try:
@@ -131,7 +134,7 @@ def update(case_identifier, identifier):
 @ac_api_requires()
 def delete(case_identifier, identifier):
     if not ac_fast_check_current_user_has_case_access(case_identifier, [CaseAccessLevel.full_access]):
-        return ac_api_return_access_denied(caseid=case_identifier)
+        return ac_api_return_access_denied(case_identifier)
 
     try:
         directory = get_note_directory_in_case(identifier, case_identifier)
@@ -145,7 +148,11 @@ def delete(case_identifier, identifier):
 @case_notes_directories_blueprint.get('')
 @ac_api_requires()
 def get_filter(case_identifier):
-    return response_api_success(None)
+    if not get_case(case_identifier):
+        return response_api_error("Invalid case ID")
+
+    directories = get_directories_with_note_count(case_identifier)
+    return response_api_success(directories)
 
 
 def get_note_directory_in_case(identifier, case_identifier):
