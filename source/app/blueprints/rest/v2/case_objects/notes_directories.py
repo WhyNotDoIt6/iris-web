@@ -21,7 +21,6 @@ from flask import request
 from marshmallow import ValidationError
 
 from app.blueprints.access_controls import ac_api_requires
-from app.blueprints.access_controls import ac_requires_case_identifier
 from app.blueprints.rest.endpoints import response_api_created
 from app.blueprints.rest.endpoints import response_api_success
 from app.blueprints.rest.endpoints import response_api_deleted
